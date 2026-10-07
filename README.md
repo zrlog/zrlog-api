@@ -7,6 +7,7 @@
 | [index.json](index.json) | 契约目录、版本、SHA-256、operationId、HTTP 方法和路径索引 |
 | [admin-web.yaml](admin-web.yaml) | 后台文章、分类、上传和通知接口 |
 | [blog-web.yaml](blog-web.yaml) | 博客公开只读接口 |
+| [plugin-core.yaml](plugin-core.yaml) | 插件上传、安装与注册接口 |
 
 每份 YAML 都是独立、可直接加载的 OpenAPI 文件，只使用文档内部引用。索引中的 `file` 相对 `index.json` 所在目录解析；`id + operationId` 唯一标识一个操作。HTTP 参数、Schema、鉴权和 SSE 完成语义在 YAML 中维护，索引由 YAML 生成。
 

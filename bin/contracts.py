@@ -15,6 +15,7 @@ CONSUMERS = {
     "zrlog-www": ("src/main/resources/api-docs", None),
     "zrlog-admin-web": ("docs/api", "admin-web"),
     "zrlog-blog-web-parent": ("docs/api", "blog-web"),
+    "zrlog-plugin-core": ("docs/api", "plugin-core"),
 }
 
 
