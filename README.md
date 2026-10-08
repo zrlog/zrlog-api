@@ -5,7 +5,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [index.json](index.json) | 契约目录、版本、SHA-256、operationId、HTTP 方法和路径索引 |
-| [admin-web.yaml](admin-web.yaml) | 后台文章、分类、上传和通知接口 |
+| [admin-web.yaml](admin-web.yaml) | 后台文章、分类、导航、上传和通知接口 |
 | [blog-web.yaml](blog-web.yaml) | 博客公开只读接口 |
 | [plugin-core.yaml](plugin-core.yaml) | 插件上传、安装与注册接口 |
 
