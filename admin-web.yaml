@@ -954,6 +954,7 @@ components:
         title: {type: string}
         alias: {type: string}
         typeAlias: {type: [string, "null"]}
+        arrange_plugin: {type: [string, "null"], description: 重排插件标识；空值使用主题默认排版}
         typeName: {type: [string, "null"]}
         markdown: {type: [string, "null"]}
         digest: {type: [string, "null"]}
@@ -1187,6 +1188,11 @@ components:
             - string
             - "null"
           description: 关键词文本；更新时省略会清空
+        arrange_plugin:
+          type: [string, "null"]
+          maxLength: 64
+          pattern: '^$|^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$'
+          description: 重排插件标识，例如 article-arranger；创建时省略或 null 使用默认排版，更新时省略或 null 保留原值，空字符串清除设置。读取快照时无设置返回空字符串。沿用文章权限、版本校验和修订记录，不改变分类或发布状态
         digest:
           type:
             - string
