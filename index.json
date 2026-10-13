@@ -6,7 +6,7 @@
       "file": "admin-web.yaml",
       "title": "ZrLog Admin Web API",
       "version": "4.0.0",
-      "sha256": "6e7b745743fce08f42cbab6e6bd991f5e62d88f9c0abd1e3f725355671a495bf",
+      "sha256": "c3aa62a28bc493381651e668eb27815034de85595a00b43cf7f068f7348027b1",
       "operations": [
         {
           "operationId": "listArticles",
@@ -91,6 +91,24 @@
           "method": "POST",
           "path": "/api/webhook/message-center/notice",
           "summary": "发送消息中心通知"
+        },
+        {
+          "operationId": "checkZrLogUpgrade",
+          "method": "GET",
+          "path": "/api/admin/upgrade",
+          "summary": "检查 ZrLog 新版本及在线升级能力"
+        },
+        {
+          "operationId": "getZrLogUpgradeNotice",
+          "method": "GET",
+          "path": "/api/admin/upgrade/notice",
+          "summary": "获取 ZrLog 版本更新通知"
+        },
+        {
+          "operationId": "executeZrLogUpgrade",
+          "method": "POST",
+          "path": "/api/admin/upgrade/doUpgrade",
+          "summary": "执行 ZrLog 站点升级"
         }
       ]
     },
