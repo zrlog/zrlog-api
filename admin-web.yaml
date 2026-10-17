@@ -428,6 +428,7 @@ paths:
       x-zrlog-response-kind: page-hydration
       x-zrlog-side-effects:
         - 创建文章数据库记录并记录 CREATE_ARTICLE 管理审计
+        - 直接创建公开文章时同时记录 PUBLISH_ARTICLE 管理审计
         - 公开文章创建成功后刷新博客缓存，并可能触发静态站同步
         - preserveDraftAiMessages 为 false 时可能把后台编辑器的未归属临时上下文迁移到新文章
       security:
@@ -534,7 +535,7 @@ paths:
       x-zrlog-response-kind: page-hydration
       x-zrlog-side-effects:
         - 全量覆盖文章可写字段并记录文章版本差异
-        - 更新非草稿文章时记录 UPDATE_ARTICLE 管理审计
+        - 保存为公开文章时记录 PUBLISH_ARTICLE 管理审计，草稿和私密文章的普通更新不记录操作日志
         - 涉及当前或原公开文章时刷新博客缓存，并可能触发静态站同步
         - 公开文章转为草稿或私密文章时会清除置顶状态并重排置顶文章
       security:
