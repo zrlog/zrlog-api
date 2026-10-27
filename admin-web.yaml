@@ -625,7 +625,11 @@ paths:
         文件保存到 `/attached` 下，返回 URL 包含部署 context path；启用上传插件时，返回值也可能是远端绝对 URL。
 
         本接口没有独立的 MIME、扩展名或文件大小白名单。调用方应提供带扩展名的文件，并自行限制允许的文件类型；
-        实际请求体上限由部署配置统一控制。数据库临时附件目录、缩略图入口和 `temporary` 参数不属于本文档范围。
+        实际请求体上限由部署配置统一控制。
+        `temporary=true` 时保存到 admin 管理的数据库临时资源库，不调用外部上传插件；数据按 256 KiB 原始字节分片，
+        保存原始文件名、字节大小和上传时间。返回 `/admin/attached/tmp/...` 应用相对路径；有部署 context path 时，
+        调用方需在访问地址前加上该前缀。资源可跨进程、实例读取，下载可使用 `/api/admin/upload/resource?path=...` 并携带当前用户的 Cookie 或 Authorization，
+        普通成员只能读取自己的临时资源。显式删除资源会同时删除数据库分片；此版本不执行定时过期清理。
       operationId: uploadAttachment
       x-zrlog-controller: com.zrlog.admin.web.controller.api.UploadController#index
       x-zrlog-response-kind: action
@@ -641,11 +645,18 @@ paths:
         - name: dir
           in: query
           required: false
-          description: "`/attached` 下的逻辑子目录；未传时使用 `thumbnail`；保留的 admin 临时附件目录不在支持范围内"
+          description: "逻辑子目录；未传时使用 `thumbnail`。temporary=true 时属于数据库临时资源库，普通成员固定写入自己的目录"
           schema:
             type: string
             default: thumbnail
           example: thumbnail
+        - name: temporary
+          in: query
+          required: false
+          description: 保存为需身份认证的数据库临时资源，不调用外部上传插件
+          schema:
+            type: boolean
+            default: false
         - name: name
           in: query
           required: false
@@ -696,6 +707,39 @@ paths:
                     message: 会话超时，请重新登录
         "413":
           description: 请求体超过当前部署配置允许的上限，在进入 Controller 前被拒绝
+  /api/admin/upload/resource:
+    get:
+      tags: [Upload]
+      summary: 下载已上传的临时资源
+      operationId: downloadTemporaryResource
+      x-zrlog-controller: com.zrlog.admin.web.controller.api.UploadController#resource
+      x-zrlog-response-kind: download
+      description: |-
+        需要 asset.upload。path 使用临时上传返回的应用相对路径，不包含部署 context path。
+        普通成员只能读取自己的临时资源；管理员可读取资源库中的临时文件。
+        支持会话凭据和委托 Bearer 令牌。响应为原始文件流，不跳转到外部地址，禁止缓存。
+      security:
+        - AccessTokenBearer: []
+        - AdminTokenHeader: []
+        - AdminTokenCookie: []
+      parameters:
+        - name: path
+          in: query
+          required: true
+          schema: {type: string}
+          example: /admin/attached/tmp/packages/abc.zip
+      responses:
+        "200":
+          description: 原始文件内容
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary}
+        "401":
+          description: 未登录或令牌无效
+        "403":
+          description: 缺少权限或试图访问其他账号的资源
+        "404":
+          description: 资源不存在或未完成写入
   /api/admin/template/upload:
     post:
       tags:
