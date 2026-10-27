@@ -6,7 +6,7 @@
       "file": "admin-web.yaml",
       "title": "ZrLog Admin Web API",
       "version": "4.0.0",
-      "sha256": "7c6236c0b9b31daa049e9db91552cfce63a470b50fc3971883098dbc5b247d06",
+      "sha256": "ef22b66b2d9f71e54ac6ec19c4071160ebe9d1d760068fb133765e204cde3a3b",
       "operations": [
         {
           "operationId": "listArticles",
@@ -79,6 +79,12 @@
           "method": "POST",
           "path": "/api/admin/upload",
           "summary": "上传通用附件"
+        },
+        {
+          "operationId": "downloadTemporaryResource",
+          "method": "GET",
+          "path": "/api/admin/upload/resource",
+          "summary": "下载已上传的临时资源"
         },
         {
           "operationId": "uploadTemplate",
@@ -156,8 +162,14 @@
       "file": "plugin-core.yaml",
       "title": "ZrLog Plugin Core API",
       "version": "4.0.0",
-      "sha256": "f3b044619546351ff51f03e596660dd9a1f94ff15b209d55d434e906937f80e5",
+      "sha256": "afbba0fc9b841636bf3c410a1051e19f60cc222db7ae1804a0bba8419539a661",
       "operations": [
+        {
+          "operationId": "installPlugin",
+          "method": "POST",
+          "path": "/api/admin/plugins/install",
+          "summary": "从资源地址安装或更新插件"
+        },
         {
           "operationId": "uploadPlugin",
           "method": "POST",
