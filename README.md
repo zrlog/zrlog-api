@@ -5,7 +5,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [index.json](index.json) | 契约目录、版本、SHA-256、operationId、HTTP 方法和路径索引 |
-| [admin-web.yaml](admin-web.yaml) | 后台文章、分类、导航、上传、通知和站点升级接口 |
+| [admin-web.yaml](admin-web.yaml) | 后台文章、分类、导航、上传、通知、站点升级和助手触发接口 |
 | [blog-web.yaml](blog-web.yaml) | 博客公开只读接口 |
 | [plugin-core.yaml](plugin-core.yaml) | 插件上传、安装与注册接口 |
 
@@ -39,3 +39,24 @@ python3 bin/contracts.py sync --workspace .. --check
 - `zrlog-www`：从此目录同步，展示契约并导出原始 YAML、JSON 和机器可读索引。
 - `zrlog-admin-web`、`zrlog-blog-web-parent`：保留生成快照，检查契约与 Controller/DTO 的一致性。
 - 本仓库不包含 Java 业务接口层、不生成 SDK，也不引入服务端运行时依赖。
+
+## 外部定时触发个人助手
+
+在后台顶部的助手入口配置任务及授权，然后在执行设置中生成专用触发令牌。
+令牌与管理员登录令牌分开管理，轮换或撤销会使旧令牌失效。没有 AI 配置也可以调用基础任务。
+
+```sh
+export ZRLOG_BASE_URL='https://blog.example.com/sub'
+# 将执行设置中生成的令牌通过环境或调用平台的密钥设置注入 ZRLOG_ASSISTANT_TASK_TOKEN。
+curl --fail-with-body --max-time 75 --request POST \
+  --header "Authorization: Bearer ${ZRLOG_ASSISTANT_TASK_TOKEN}" \
+  "${ZRLOG_BASE_URL}/api/admin/assistant/trigger"
+```
+
+示例的客户端超时适用于默认 60 秒执行预算。外部定时平台可按分钟触发；实际计划时间、时区、启停和授权由后台任务配置决定。
+FaaS 部署需要外部触发；常驻部署也可使用内部扫描。执行预算应小于平台请求时限，并给传输和结果保存留出余量。
+接口不接收任务参数，也不能通过请求扩大授权。
+
+响应中的 `executed` 包含失败和待处理任务，要同时检查 `failed`、`needsAttention`、`budgetExhausted`，并在后台历史中查看结果。
+断流或超时后先检查已有记录；结果待确认的任务不会自动重放。插件触发在助手中是一条父任务，插件排期仍在插件管理维护。
+完整鉴权、字段及错误语义见 `admin-web.yaml` 的 `triggerAssistantTasks`。

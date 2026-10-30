@@ -36,7 +36,74 @@ tags:
     description: 外部消息中心通知
   - name: Upgrade
     description: ZrLog 站点版本检查与升级
+  - name: Assistant
+    description: 已配置的个人助手任务触发
 paths:
+  /api/admin/assistant/trigger:
+    post:
+      tags: [Assistant]
+      summary: 触发已到期的助手任务
+      operationId: triggerAssistantTasks
+      x-zrlog-controller: com.zrlog.admin.web.interceptor.AutomationTickInterceptor#doInterceptor
+      x-zrlog-response-kind: action
+      description: |-
+        使用“助手 → 执行设置”生成的专用 Bearer 令牌。生成或轮换令牌需要 system.manage，
+        原始令牌只显示一次；轮换后旧令牌失效，撤销令牌或关闭外部触发后本接口返回 401。
+        此令牌只能触发已配置且到期的任务，不能创建、编辑、启用任务或指定任意业务参数。
+        管理员登录 Cookie、普通访问令牌和 OAuth 令牌不能代替它。
+
+        请求无需正文，也不接受任务 ID、授权动作或执行预算参数。任务覆盖本站已启用且到期的助手计划，
+        每次执行重新检查任务拥有者及任务授权；发布、升级等动作必须事先在任务中明确授权。
+        单次最多检查 32 条到期记录。重复或并发触发通过持久抢占避免同时执行同一次任务，
+        但这不是任意业务副作用的 exactly-once 保证；结果不明的任务暂停，必须先检查历史再重新启用。
+
+        常驻部署内部扫描与此接口共用任务列表；FaaS 不启动内部扫描，需要外部定时调用。
+        外部执行预算在执行设置中配置，范围 10–660 秒，默认 60 秒。应小于平台的请求时限，
+        并为网络传输和结果保存留出余量；调用方的 HTTP 超时也应长于设置的预算。
+        预算不足时任务保持到期，并在 insufficientBudgetTaskIds 中报告无法装入整次预算的任务。
+        requiredBudgetSeconds 表示这类任务中最大的预算要求，不是全部任务耗时之和。
+
+        executed 统计本次获得执行记录的任务，包含失败和待处理结果，不能直接当作成功数。
+        failed 与 needsAttention 可重叠（结果不明同时计入两者）。详细结果在后台助手执行记录中查看；
+        插件调度作为一条父任务记录，本次插件结果在其子任务中展示，插件排期仍在插件管理。
+        HTTP 200 只表示已返回统计；仍需检查 error 和各项统计。断流或超时不证明任务没有发生效果，
+        不应据此重新创建计划、重新授权升级或发布，先查看已有执行记录。
+      security:
+        - AssistantTaskTriggerBearer: []
+      responses:
+        '200':
+          description: 本次触发统计；空闲触发返回零计数，不新增业务执行记录
+          headers:
+            Cache-Control:
+              schema: {type: string, const: no-store}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistantTaskTriggerResponse'
+              example:
+                error: 0
+                message: ''
+                data:
+                  executed: 0
+                  failed: 0
+                  skipped: 0
+                  needsAttention: 0
+                  budgetExhausted: false
+                  insufficientBudgetTaskIds: []
+                  requiredBudgetSeconds: 0
+                  runIds: []
+        '401':
+          description: 专用令牌缺失、格式错误、无效或已撤销，或外部触发已关闭；不开始任务扫描
+          headers:
+            WWW-Authenticate:
+              schema: {type: string, const: Bearer}
+        '405':
+          description: 仅支持 POST，其他方法不会触发任务
+          headers:
+            Allow:
+              schema: {type: string, const: POST}
+        '500':
+          description: 调度存储或执行服务异常；请先查询后台执行历史，不根据 HTTP 失败推断没有业务效果
   /api/admin/article:
     get:
       tags: [Article]
@@ -898,6 +965,8 @@ paths:
         返回升级目标、部署模式、在线升级能力和备份验证状态。
         只承诺 data 中声明的字段，不承诺附带的后台页面元数据。
         onlineUpgradable=false 时应按 disableUpgradeReason 手动升级。
+        execution 为手动与助手自动升级共用的最近执行记录；confirmed 需由目标构建号确认。
+        存在未确认执行时不应提交新的升级；canRetry=true 时仍需用户核实部署状态并明确授权重试。
       operationId: checkZrLogUpgrade
       x-zrlog-controller: com.zrlog.admin.web.controller.api.UpgradeController#index
       x-zrlog-response-kind: page-hydration
@@ -959,6 +1028,10 @@ paths:
         sse-error 或缺少 response 的断流表示执行结果未确认，不得自动重试。
         error=0 仍须检查 data.finish；false 表示未完成，message 提供手动操作说明。
         finish=true 表示升级处理已完成，不证明重启后的站点可用；调用方需另行验证运行版本。
+        手动与助手升级共用持久执行记录。存在未确认执行时，返回 HTTP 200、JSON error=409
+        和 data 中的当前 UpgradeExecution，不开始 SSE 或升级操作；此结果不应触发重启轮询或自动重试。
+        人工核实已有执行已结束及部署状态后，仅在 canRetry=true 时提交 reviewedExecutionId，
+        其值必须匹配当前执行。旧页面的确认不能覆盖后来的执行。
       operationId: executeZrLogUpgrade
       x-zrlog-controller: com.zrlog.admin.web.controller.api.UpgradeController#doUpgrade
       x-zrlog-response-kind: action
@@ -980,14 +1053,20 @@ paths:
               required: [upgradeRiskAccepted]
               properties:
                 upgradeRiskAccepted: {type: boolean, const: true}
+                reviewedExecutionId:
+                  type: string
+                  pattern: '^[0-9]{10}\.[0-9]{20}\.[a-f0-9-]{36}$'
+                  description: 可选；明确授权对已核实结果的那一次执行重试，不能仅因断流而提交。
             example: {upgradeRiskAccepted: true}
       responses:
         "200":
-          description: 执行结果；检查 error 和 data.finish
+          description: 执行结果；检查 error 和 data.finish。error=409 为共享记录冲突，data 是当前执行记录或 null。
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UpgradeExecuteResponse"
+                oneOf:
+                  - $ref: "#/components/schemas/UpgradeExecuteResponse"
+                  - $ref: "#/components/schemas/UpgradeConflictResponse"
             text/event-stream:
               x-zrlog-stream:
                 completionEvent: response
@@ -1068,6 +1147,10 @@ components:
           schema:
             $ref: "#/components/schemas/NavigationRefreshStream"
   securitySchemes:
+    AssistantTaskTriggerBearer:
+      type: http
+      scheme: bearer
+      description: 助手执行设置签发的专用触发令牌，仅用于 POST /api/admin/assistant/trigger；与管理员登录令牌分开管理。
     AccessTokenBearer:
       type: http
       scheme: bearer
@@ -1083,6 +1166,49 @@ components:
       name: admin-token
       description: 后台登录建立的管理员会话 Cookie
   schemas:
+    AssistantTaskTriggerResponse:
+      type: object
+      required: [error, message, data]
+      properties:
+        error: {type: integer, description: 0 表示本次触发返回统计，不表示所有任务成功}
+        message: {type: string}
+        data:
+          $ref: '#/components/schemas/AssistantTaskTriggerResult'
+    AssistantTaskTriggerResult:
+      type: object
+      required: [executed, failed, skipped, needsAttention, budgetExhausted, insufficientBudgetTaskIds, requiredBudgetSeconds, runIds]
+      properties:
+        executed:
+          type: integer
+          minimum: 0
+          description: 本次创建并完成处理的执行记录数，含失败和待处理结果
+        failed:
+          type: integer
+          minimum: 0
+          description: failed 或 uncertain 状态的记录数
+        skipped:
+          type: integer
+          minimum: 0
+          description: 本次跳过的候选数，包括预算不足、抢占冲突和未完成记录恢复
+        needsAttention:
+          type: integer
+          minimum: 0
+          description: needs_attention 或 uncertain 状态的记录数；可能与 failed 重叠
+        budgetExhausted:
+          type: boolean
+          description: 有候选因剩余预算不足而未执行
+        insufficientBudgetTaskIds:
+          type: array
+          items: {type: string}
+          description: 单个任务的预算要求已超过整次配置预算的任务标识
+        requiredBudgetSeconds:
+          type: integer
+          minimum: 0
+          description: insufficientBudgetTaskIds 中最大的预算要求；没有此类任务时为 0
+        runIds:
+          type: array
+          items: {type: string}
+          description: 本次产生的助手执行记录标识；子任务记录由对应父任务持有
     UpgradeVersion:
       type: object
       properties:
@@ -1138,6 +1264,32 @@ components:
             nativeImageMode: {type: boolean}
             backupProtection:
               $ref: "#/components/schemas/UpgradeBackupProtection"
+            execution:
+              anyOf:
+                - $ref: "#/components/schemas/UpgradeExecution"
+                - type: 'null'
+    UpgradeExecution:
+      type: object
+      required: [id, source, state, startedAt, confirmed, canRetry]
+      properties:
+        id: {type: string, description: 执行记录标识；明确授权重试时原样提交}
+        source: {type: string, enum: [manual, assistant]}
+        version: {type: string}
+        buildId: {type: string}
+        state: {type: string, enum: [pending, needs_review, confirmed]}
+        startedAt: {type: integer, format: int64, description: Unix 毫秒时间戳}
+        confirmed: {type: boolean}
+        canRetry: {type: boolean, description: 当前账号可在人工核实后授权重试；不是自动重试许可}
+    UpgradeConflictResponse:
+      type: object
+      required: [error, message, data]
+      properties:
+        error: {type: integer, const: 409}
+        message: {type: string}
+        data:
+          anyOf:
+            - $ref: "#/components/schemas/UpgradeExecution"
+            - type: 'null'
     UpgradeNoticeResponse:
       type: object
       required: [error, data]

@@ -6,8 +6,14 @@
       "file": "admin-web.yaml",
       "title": "ZrLog Admin Web API",
       "version": "4.0.0",
-      "sha256": "ef22b66b2d9f71e54ac6ec19c4071160ebe9d1d760068fb133765e204cde3a3b",
+      "sha256": "d89afc042db419b4c4665bd6f6e85bdf94064323171d5112f52fab1932ed4077",
       "operations": [
+        {
+          "operationId": "triggerAssistantTasks",
+          "method": "POST",
+          "path": "/api/admin/assistant/trigger",
+          "summary": "触发已到期的助手任务"
+        },
         {
           "operationId": "listArticles",
           "method": "GET",
