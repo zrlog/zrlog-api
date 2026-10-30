@@ -53,7 +53,7 @@ paths:
         管理员登录 Cookie、普通访问令牌和 OAuth 令牌不能代替它。
 
         请求无需正文，也不接受任务 ID、授权动作或执行预算参数。任务覆盖本站已启用且到期的助手计划，
-        每次执行重新检查任务拥有者及任务授权；发布、升级等动作必须事先在任务中明确授权。
+        每次执行检查当前账号权限与任务声明；系统维护配置全站共用，自动升级默认关闭，由有权限的用户手动开启。
         单次最多检查 32 条到期记录。重复或并发触发通过持久抢占避免同时执行同一次任务，
         但这不是任意业务副作用的 exactly-once 保证；结果不明的任务暂停，必须先检查历史再重新启用。
 
@@ -1620,10 +1620,17 @@ components:
         rubbish:
           type: boolean
           description: true 表示草稿且不公开；false 时由 privacy 决定公开或私密
+        publishAt:
+          type: [integer, "null"]
+          format: int64
+          writeOnly: true
+          minimum: 0
+          maximum: 253402300799000
+          description: 可选发布时间（Unix 毫秒）。未来时间要求公开发布请求且当前文章为草稿；保存为草稿并建立或更新助手发布计划，绑定本次保存版本。未提供或时间已到时沿用即时发布。未来排期返回 JSON，检查 data.publicationSchedule.state。
         transparentPublish:
           type: boolean
           default: false
-          description: true 且 rubbish=false、privacy=false 时返回发布 SSE；其他情况返回普通 JSON
+          description: true 且 rubbish=false、privacy=false、未指定未来 publishAt 时返回发布 SSE；其他情况返回普通 JSON
     ArticlePublishStream:
       type: string
       description: |-
@@ -1683,6 +1690,16 @@ components:
           $ref: "#/components/schemas/ArticleSaveData"
       description: 实际响应还包含 admin 页面 hydration 元数据，调用方不应依赖这些 UI 字段
       additionalProperties: true
+    ArticlePublicationSchedule:
+      type: object
+      required: [state, publishAt, articleVersion]
+      properties:
+        state: {type: string, enum: [scheduled, failed]}
+        taskId: {type: string, description: 助手发布计划 ID；排期成功时返回}
+        taskRevision: {type: integer, format: int64}
+        publishAt: {type: integer, format: int64, description: Unix 毫秒}
+        articleVersion: {type: integer, format: int32, description: 本次实际保存并确认的文章版本}
+      description: failed 仍表示草稿已保存；使用 data.article 的 ID 和版本检查并重试，不能重新创建文章。scheduled 仅确认排期成功，不表示文章已公开。
     ArticleSaveData:
       type: object
       required:
@@ -1690,6 +1707,8 @@ components:
       properties:
         article:
           $ref: "#/components/schemas/ArticleSnapshot"
+        publicationSchedule:
+          $ref: "#/components/schemas/ArticlePublicationSchedule"
       description: 实际响应还包含分类、标签和编辑器配置等 UI 数据
       additionalProperties: true
     ArticleSnapshot:

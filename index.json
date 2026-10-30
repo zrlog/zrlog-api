@@ -6,7 +6,7 @@
       "file": "admin-web.yaml",
       "title": "ZrLog Admin Web API",
       "version": "4.0.0",
-      "sha256": "d89afc042db419b4c4665bd6f6e85bdf94064323171d5112f52fab1932ed4077",
+      "sha256": "42a8f91fb735d0b6a08d01b50569213117fe76fbba9cd1de466534dfd69d1ec0",
       "operations": [
         {
           "operationId": "triggerAssistantTasks",
